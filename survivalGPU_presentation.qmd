@@ -1,0 +1,145 @@
+---
+title: "survivalGPU : Analyses de survie sur cartes graphiques"
+author: 
+  - Alexis van STRAATEN\inst{1}
+  - Jean FEYDY\inst{2}
+  - Anne-Sophie JANNOT\inst{2,3}
+institute: 
+  - \inst{1} Assistance Publique-Hôpitaux de Paris (AP-HP), Service d'informatique Médicale, Biostatistiques Et Santé Publique, Hôpital Européen Georges Pompidou, Paris
+  - \inst{2} HeKA, Centre de Recherche des Cordeliers, INSERM, INRIA, Paris
+  - \inst{3} Cellule opérationnelle de la Banque Nationale de Données Maladies Rares, AP-HP, Paris
+format:
+  beamer:
+    header-includes: |
+      \titlegraphic{\includegraphics[width=0.14\paperwidth]{logo/logo_aphp.png}
+                    \includegraphics[width=0.14\paperwidth]{logo/logo_epi-phare.png}
+                    \includegraphics[width=0.14\paperwidth]{logo/inr_logo_rouge.jpg}
+                    \includegraphics[width=0.1\paperwidth]{logo/logo_heka.jpg}}
+    colortheme: seahorse
+    fontsize: "10pt"
+    aspectratio: 169
+editor: visual
+bibliography: references.bib
+---
+
+## L'analyse de survie
+
+```{r, out.width="80%", fig.align='center'}
+
+library(ganttrify)
+
+patient <- data.frame(wp = paste("Patient", 1:5),
+                      activity = paste("Patient", 1:5),
+                      start_date = as.Date(c("2020-09-02", "2020-09-02", "2020-09-05", "2020-09-25", "2020-09-02")),
+                      end_date = as.Date(c("2020-09-30", "2020-09-17", "2020-09-22", "2020-09-30", "2020-09-26")))
+
+events <- data.frame(activity = c("Patient 2", "Patient 4"),
+                     spot_type = c("X", "X"),
+                     spot_date = c("2020-09-17", "2020-09-30"))
+
+ganttrify(project = patient,
+          spots = events,
+          by_date = TRUE,
+          exact_date = TRUE,
+          size_text_relative = 1.3,
+          # colour_palette = rep("red", 5),
+          month_number_label = FALSE,
+          month_date_label = FALSE)
+
+```
+
+## L'analyse de survie
+
+**Modèle** : Cox (1972)
+
+**Implémentation sur R** : package `survival` de Terry Therneau, avec la fonction `coxph()`
+
+-   Etude sur la survenue d'un évènement.
+
+    \
+
+Actuellement dans la recherche médicale:
+
+-   Accès à de larges bases de données de santé & développement d'entrepôts.
+
+-   Les méthodes sont acceptables pour des petites études, mais non utilisables pour des études à grande échelle.
+
+**Solution** : utiliser les ressources des cartes graphiques.
+
+## Construction de `survivalGPU`
+
+Etapes de construction du package :
+
+1.  Profilage du package `survival`
+
+2.  Réécriture d'un nouveau solveur de Cox en python avec pytorch pour la compatibilité avec les cartes graphiques Nvidia
+
+3.  Construction du package R avec les fonctions python en utilisant `reticulate`
+
+4.  Tests unitaires : reprise des tests de `survival` et résultats identiques entre `survival` et `survivalGPU`
+
+## `survivalGPU`
+
+Implémentation de 2 modèles :
+
+-   Cox
+
+-   WCE (Weighted Cumulative Exposure) pour la pharmacovigilance
+
+\
+
+Plus-values de `survivalGPU` :
+
+-   Scalable
+
+-   Rapide
+
+-   Gestion des bootstraps
+
+## `survival` et `survivalGPU`
+
+```{r, echo=TRUE}
+head(WCE::drugdata)
+```
+
+## `survival` et `survivalGPU`
+
+::: columns
+::: {.column width="50%"}
+\tiny
+
+```{r, echo=TRUE, eval=TRUE}
+library(survival)
+coxph_model <- coxph(Surv(Start, Stop, Event) ~ dose,
+                     data = WCE::drugdata)
+summary(coxph_model)
+```
+:::
+
+::: {.column width="50%"}
+\tiny
+
+```{r, echo=TRUE, eval=TRUE}
+library(survivalGPU)
+coxphGPU_model <- coxphGPU(Surv(Start, Stop, Event) ~ dose,
+                           data = WCE::drugdata)
+summary(coxphGPU_model)
+```
+:::
+:::
+
+## Benchmark
+
+```{r, echo=FALSE}
+# intégrer benchmark
+```
+
+## Discussion
+
+-   Implémentation de nouvelles options tels que les tests de permutation
+
+-   Validation du package à travers des simulations
+
+\
+
+Package disponible sur Github : <https://github.com/jeanfeydy/survivalGPU>
