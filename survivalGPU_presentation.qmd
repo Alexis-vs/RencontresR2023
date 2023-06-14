@@ -11,10 +11,10 @@ institute:
 format:
   beamer:
     header-includes: |
-      \titlegraphic{\includegraphics[width=0.14\paperwidth]{logo/logo_aphp.png}
-                    \includegraphics[width=0.14\paperwidth]{logo/logo_epi-phare.png}
-                    \includegraphics[width=0.14\paperwidth]{logo/inr_logo_rouge.jpg}
-                    \includegraphics[width=0.1\paperwidth]{logo/logo_heka.jpg}}
+      \titlegraphic{\includegraphics[width=0.14\paperwidth]{images/logo/logo_aphp.png}
+                    \includegraphics[width=0.14\paperwidth]{images/logo/logo_epi-phare.png}
+                    \includegraphics[width=0.14\paperwidth]{images/logo/inr_logo_rouge.jpg}
+                    \includegraphics[width=0.1\paperwidth]{images/logo/logo_heka.jpg}}
     colortheme: seahorse
     fontsize: "10pt"
     aspectratio: 169
@@ -76,17 +76,19 @@ Etapes de construction du package :
 
 3.  Construction du package R avec les fonctions python en utilisant `reticulate`
 
-4.  Tests unitaires : reprise des tests de `survival` et résultats identiques entre `survival` et `survivalGPU`
+4.  Tests unitaires : reprise des tests de `survival` et résultats identiques entre `survival` et `survivalGPU` (en cours)
 
 ## `survivalGPU`
 
+::: columns
+::: {.column width="80%"}
 Implémentation de 2 modèles :
 
 -   Cox
 
 -   WCE (Weighted Cumulative Exposure) pour la pharmacovigilance
 
-\
+    \
 
 Plus-values de `survivalGPU` :
 
@@ -95,12 +97,35 @@ Plus-values de `survivalGPU` :
 -   Rapide
 
 -   Gestion des bootstraps
+:::
+
+::: {.column width="20%"}
+![](images/logo/logo_survivalGPU.png)
+:::
+:::
 
 ## `survival` et `survivalGPU`
 
+::: columns
+::: {.column width="50%"}
+\small
+
+Exemples et tests avec le jeu de données `WCE::drugdata` \vspace{0.2cm}
+
+\small
+
 ```{r, echo=TRUE}
-head(WCE::drugdata)
+library(WCE)
+drugdata[43:53,]
 ```
+:::
+
+::: {.column width="50%"}
+\
+
+![](images/drugdata_description.png){fig-align="center" width="250"}
+:::
+:::
 
 ## `survival` et `survivalGPU`
 
@@ -110,9 +135,21 @@ head(WCE::drugdata)
 
 ```{r, echo=TRUE, eval=TRUE}
 library(survival)
+
+## Cox model
 coxph_model <- coxph(Surv(Start, Stop, Event) ~ dose,
-                     data = WCE::drugdata)
-summary(coxph_model)
+                     data = drugdata)
+round(exp(coxph_model$coefficients), 3) # HR (Hazard Ratio)
+```
+
+\vspace{0.3cm}
+
+```{r, echo=TRUE}
+## WCE model
+wce_model <- WCE(drugdata, "Cox", nknots =  1, cutoff =  90, id = "Id",
+                 event = "Event", start = "Start", stop = "Stop",
+                 expos = "dose", covariates = c("sex", "age"))
+summary(wce_model)
 ```
 :::
 
@@ -121,18 +158,30 @@ summary(coxph_model)
 
 ```{r, echo=TRUE, eval=TRUE}
 library(survivalGPU)
+
+## Cox model
 coxphGPU_model <- coxphGPU(Surv(Start, Stop, Event) ~ dose,
-                           data = WCE::drugdata)
-summary(coxphGPU_model)
+                           data = drugdata)
+round(exp(coxphGPU_model$coefficients), 3)
+```
+
+\vspace{0.3cm}
+
+```{r, echo=TRUE}
+## WCE model
+wceGPU_model <- wceGPU(drugdata, nknots =  1, cutoff =  90, id = "Id",
+                       event = "Event", start = "Start", stop = "Stop",
+                       expos = "dose", covariates = c("sex", "age"))
+summary(wceGPU_model)
 ```
 :::
 :::
 
 ## Benchmark
 
-```{r, echo=FALSE}
-# intégrer benchmark
-```
+Benchmark du modèle WCE avec `drugdata`
+
+![](images/wce_benchmark.jpg){fig-align="center" width="500"}
 
 ## Discussion
 
