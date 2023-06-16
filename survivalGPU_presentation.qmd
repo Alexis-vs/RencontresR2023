@@ -22,9 +22,11 @@ editor: visual
 bibliography: references.bib
 ---
 
-## L'analyse de survie
+## Contexte des données censurées
 
-```{r, out.width="80%", fig.align='center'}
+Données avec une fenêtre d'observation qui dépend du patient.
+
+```{r, out.width="70%", fig.align='center'}
 
 library(ganttrify)
 
@@ -50,33 +52,22 @@ ganttrify(project = patient,
 
 ## L'analyse de survie
 
-**Modèle** : Cox (1972)
+**Modèle de régression avec données censurées** : Cox (1972)
 
 **Implémentation sur R** : package `survival` de Terry Therneau, avec la fonction `coxph()`
 
--   Etude sur la survenue d'un évènement.
-
-    \
+\
 
 Actuellement dans la recherche médicale:
 
--   Accès à de larges bases de données de santé & développement d'entrepôts.
+-   Accès à de larges bases de données de santé.
 
--   Les méthodes sont acceptables pour des petites études, mais non utilisables pour des études à grande échelle.
+-   `survival` est acceptable pour des petites études, mais non utilisable pour des études à grande échelle.
 
-**Solution** : utiliser les ressources des cartes graphiques.
+    \
 
-## Construction de `survivalGPU`
-
-Etapes de construction du package :
-
-1.  Profilage du package `survival`
-
-2.  Réécriture d'un nouveau solveur de Cox en python avec pytorch pour la compatibilité avec les cartes graphiques Nvidia
-
-3.  Construction du package R avec les fonctions python en utilisant `reticulate`
-
-4.  Tests unitaires : reprise des tests de `survival` et résultats identiques entre `survival` et `survivalGPU` (en cours)
+**Solution** : utiliser les ressources des cartes graphiques.\
+**Objectif** : package `survival` avec support GPU.
 
 ## `survivalGPU`
 
@@ -97,6 +88,8 @@ Plus-values de `survivalGPU` :
 -   Rapide
 
 -   Gestion des bootstraps
+
+-   Rétro-compatibilité avec `survival`
 :::
 
 ::: {.column width="20%"}
@@ -104,13 +97,72 @@ Plus-values de `survivalGPU` :
 :::
 :::
 
-## `survival` et `survivalGPU`
+## Construction de `survivalGPU`
+
+Etapes de construction du package :
+
+1.  Revue du code du package `survival`
+
+2.  Traduction du solveur de Cox (Newton sur fonction convexe) en python avec pytorch pour la compatibilité avec les cartes graphiques Nvidia
+
+3.  Construction du package R avec les fonctions python en utilisant `reticulate`
+
+4.  Tests unitaires : reprise des tests de `survival` et résultats identiques entre `survival` et `survivalGPU` (en cours)
+
+## Tests unitaires
+
+Exemple d'un test unitaire dans `survival`
+
+::: columns
+::: {.column width="38%"}
+\tiny
+
+```{r, echo=TRUE}
+test3 <- data.frame(futime=1:12,
+                    fustat=c(1,0,1,0,1,0,0,0,0,0,0,0),
+                    x1=rep(0:1,6),
+                    x2=c(rep(0,6), rep(1,6)))
+test3
+```
+:::
+
+::: {.column width="62%"}
+\tiny
+
+```{r, echo=TRUE}
+library(survival)
+fit3 <- coxph(Surv(futime, fustat) ~ x1 + x2, test3, iter=25)
+
+# Actual solution
+#  time 1, 12 at risk,  3 each of x1/x2 = 00, 01, 10, 11
+#  time 2, 10 at risk,                     2, 3,  2 ,  3
+#  time 5, 8  at risk,                     1, 3,  1,   3
+# Let r1 = exp(beta1), r2= exp(beta2)
+# loglik = -log(3 + 3r1 + 3r2 + 3 r1*r2) - log(2 + 2r1 + 3r2 + 3 r1*r2) -
+#           log(1 + r1  + 3r2 + 3 r1*r2)
+
+true <- function(beta) {
+  r1 <- exp(beta[1])
+  r2 <- exp(beta[2])
+  loglik <- -log(3*(1+ r1+ r2+ r1*r2)) - log(2+ 2*r1 + 3*r2 + 3*r1*r2) -
+    log(1 + r1 + 3*r2 + 3*r1*r2)
+  loglik
+}
+
+paste("log vraisemblance avec coxph() :", round(fit3$loglik[2], 3))
+paste("log vraisemblance avec true()  :", round(true(fit3$coef), 3))
+
+```
+:::
+:::
+
+## Applications avec le jeu de données synthétique `drugdata`
 
 ::: columns
 ::: {.column width="50%"}
 \small
 
-Exemples et tests avec le jeu de données `WCE::drugdata` \vspace{0.2cm}
+Exemples et tests avec `WCE::drugdata` \vspace{0.25cm}
 
 \small
 
@@ -127,7 +179,7 @@ drugdata[43:53,]
 :::
 :::
 
-## `survival` et `survivalGPU`
+## Comparaison `survival` et `survivalGPU`
 
 ::: columns
 ::: {.column width="50%"}
@@ -177,17 +229,17 @@ summary(wceGPU_model)
 :::
 :::
 
-## Benchmark
+## Benchmark du modèle WCE
 
 Benchmark du modèle WCE avec `drugdata`
 
 ![](images/wce_benchmark.jpg){fig-align="center" width="500"}
 
-## Discussion
+## Perspectives
 
--   Implémentation de nouvelles options tels que les tests de permutation
+-   Implémentation des features de `survival`, et de nouvelles options tels que les tests de permutation
 
--   Validation du package à travers des simulations
+-   Validation du package à travers des simulations intensives
 
 \
 
